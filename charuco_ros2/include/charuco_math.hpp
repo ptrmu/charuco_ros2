@@ -1,0 +1,8 @@
+//
+// Created by peter on 3/7/19.
+//
+
+#ifndef CHARUCO_ROS2_CHARUCO_MATH_HPP
+#define CHARUCO_ROS2_CHARUCO_MATH_HPP
+
+#endif //CHARUCO_ROS2_CHARUCO_MATH_HPP
