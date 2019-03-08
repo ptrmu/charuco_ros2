@@ -1,16 +1,16 @@
 
 #include "rclcpp/rclcpp.hpp"
 
-#include "charuco_ros2_msgs/srv/calibrate_action.hpp"
-#include "charuco_ros2_msgs/srv/capture_action.hpp"
+#include "charuco_ros2_msgs/srv/calibrate.hpp"
+#include "charuco_ros2_msgs/srv/capture.hpp"
 
 namespace charuco_ros2
 {
   class CharucoRos2Node : public rclcpp::Node
   {
 
-    rclcpp::Service<charuco_ros2_msgs::srv::CalibrateAction>::SharedPtr calibrate_srv_;
-    rclcpp::Service<charuco_ros2_msgs::srv::CaptureAction>::SharedPtr capture_srv_;
+    rclcpp::Service<charuco_ros2_msgs::srv::Calibrate>::SharedPtr calibrate_srv_;
+    rclcpp::Service<charuco_ros2_msgs::srv::Capture>::SharedPtr capture_srv_;
 
   public:
     CharucoRos2Node()
@@ -18,21 +18,24 @@ namespace charuco_ros2
     {
 
       // ROS services
-      calibrate_srv_ = create_service<charuco_ros2_msgs::srv::CalibrateAction>(
+      calibrate_srv_ = create_service<charuco_ros2_msgs::srv::Calibrate>(
         "charuco_ros2_calibrate",
         [this](const std::shared_ptr<rmw_request_id_t> request_header,
-               const std::shared_ptr<charuco_ros2_msgs::srv::CalibrateAction::Request> request,
-               std::shared_ptr<charuco_ros2_msgs::srv::CalibrateAction::Response> response) -> void
+               const std::shared_ptr<charuco_ros2_msgs::srv::Calibrate::Request> request,
+               std::shared_ptr<charuco_ros2_msgs::srv::Calibrate::Response> response) -> void
         {
         });
 
-      capture_srv_ = create_service<charuco_ros2_msgs::srv::CaptureAction>(
+      capture_srv_ = create_service<charuco_ros2_msgs::srv::Capture>(
         "charuco_ros2_capture",
         [this](const std::shared_ptr<rmw_request_id_t> request_header,
-               const std::shared_ptr<charuco_ros2_msgs::srv::CaptureAction::Request> request,
-               std::shared_ptr<charuco_ros2_msgs::srv::CaptureAction::Response> response) -> void
+               const std::shared_ptr<charuco_ros2_msgs::srv::Capture::Request> request,
+               std::shared_ptr<charuco_ros2_msgs::srv::Capture::Response> response) -> void
         {
+          response->rc = response->NO_IMAGE_AVAILABLE;
         });
+
+      RCLCPP_INFO(get_logger(), "charuco_ros2 node ready");
     }
   };
 }

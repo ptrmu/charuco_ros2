@@ -19,8 +19,8 @@ include_directories(
 )
 
 set(SRV_FILES
-  "srv/CalibrateAction.srv"
-  "srv/CaptureAction.srv"
+  "srv/Calibrate.srv"
+  "srv/Capture.srv"
   )
 
 # Generate ROS interfaces
