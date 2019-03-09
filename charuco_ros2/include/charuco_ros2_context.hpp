@@ -1,5 +1,6 @@
 #ifndef CHARUCO_ROS2_CONTEXT_HPP
 #define CHARUCO_ROS2_CONTEXT_HPP
+
 #include <string>
 
 #include "context_macros.hpp"
@@ -29,7 +30,7 @@ namespace charuco_ros2
   \
   CXT_ELEM(               /* topic for calibrate service */ \
   calibrate_srv_topic,  \
-  "/fiducial_observations", std::string) \
+  "charuco_ros2_calibrate", std::string) \
   CXT_ELEM(               /* topic for capture service  */ \
   capture_srv_topic,  \
   "charuco_ros2_capture", std::string) \
@@ -46,22 +47,22 @@ namespace charuco_ros2
                           /* charuco parameters */ \
   CXT_ELEM(               /* dictionary id  */ \
   aruco_dictionary_id,  \
-  1, int) \
+  0, int) \
   CXT_ELEM(               /* non-zero => refine the detected markers  */ \
   refind_strategy,  \
   1, int) \
   CXT_ELEM(               /* number of squares in the x direction on the charuco board  */ \
   squares_x,  \
-  5, int) \
+  4, int) \
   CXT_ELEM(               /* number of squares in the y direction on the charuco board  */ \
   squares_y,  \
-  7, int) \
+  5, int) \
   CXT_ELEM(               /* length of a square on the charuco board  */ \
   square_length,  \
-  0.16, double) \
+  0.038, float) \
   CXT_ELEM(               /* length of a marker on the charuco board  */ \
   marker_length,  \
-  0.08, double) \
+  0.019, float) \
   \
   CXT_ELEM(               /* non-zero => publish the tf of the camera at every frame  */ \
   publish_tfs,  \

@@ -3,4 +3,5 @@
 # Initial response code:
 uint8 OK=1
 uint8 NOT_ENOUGH_IMAGES=2
+uint8 NOT_ENOUGH_CORNERS=3
 uint8 rc

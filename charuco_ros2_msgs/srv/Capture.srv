@@ -3,4 +3,5 @@
 # Initial response code:
 uint8 OK=1
 uint8 NO_IMAGE_AVAILABLE=2
+uint8 IMAGE_IS_OLD=3
 uint8 rc

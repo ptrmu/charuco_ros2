@@ -17,8 +17,11 @@ namespace charuco_ros2
 
   class CharucoRos2Node : public rclcpp::Node
   {
+    rclcpp::Logger ros_logger_inst;
+    rclcpp::Logger &ros_logger;
+
     CharucoRos2Context cxt_{};
-    CharucoMath cm_{};
+    CharucoMath cm_;
 
     sensor_msgs::msg::Image::UniquePtr last_image_msg_{};
     std::vector<cv_bridge::CvImagePtr> captured_images_{};
@@ -32,18 +35,16 @@ namespace charuco_ros2
     rclcpp::Service<charuco_ros2_msgs::srv::Calibrate>::SharedPtr calibrate_srv_{};
     rclcpp::Service<charuco_ros2_msgs::srv::Capture>::SharedPtr capture_srv_{};
 
-    constexpr static int CAPTURED_IMAGE_EXPIRATION_SEC = 0.5;
+    constexpr static double CAPTURED_IMAGE_EXPIRATION_SEC = 0.5;
 
   public:
     CharucoRos2Node()
-      : Node("charuco_ros2_node")
+      : Node("charuco_ros2_node"),
+        ros_logger_inst{get_logger()}, ros_logger{ros_logger_inst},
+        cm_{ros_logger, cxt_}
     {
       // Get parameters from the command line
       cxt_.load_parameters(*this);
-
-      // Initialize the CharucoMath module
-      cm_.init(cxt_);
-
 
       // ROS publishers. Initialize after parameters have been loaded.
       if (cxt_.publish_image_marked_) {
@@ -97,7 +98,7 @@ namespace charuco_ros2
                const std::shared_ptr<charuco_ros2_msgs::srv::Calibrate::Request> request,
                std::shared_ptr<charuco_ros2_msgs::srv::Calibrate::Response> response) -> void
         {
-          response->rc = response->NOT_ENOUGH_IMAGES;
+          response->rc = cm_.calculate_calibration(captured_images_);
         });
 
       capture_srv_ = create_service<charuco_ros2_msgs::srv::Capture>(
@@ -107,12 +108,15 @@ namespace charuco_ros2
                std::shared_ptr<charuco_ros2_msgs::srv::Capture::Response> response) -> void
         {
           // If the image isn't fresh enough or if there is no image, then return an error.
-          if (!last_image_msg_ ||
-              (now().seconds() - rclcpp::Time(last_image_msg_->header.stamp).seconds() >
-               CAPTURED_IMAGE_EXPIRATION_SEC)) {
+          if (!last_image_msg_) {
             response->rc = response->NO_IMAGE_AVAILABLE;
             return;
           }
+//          auto age = now().seconds() - rclcpp::Time(last_image_msg_->header.stamp).seconds();
+//          if (age > CAPTURED_IMAGE_EXPIRATION_SEC) {
+//            response->rc = response->IMAGE_IS_OLD;
+//            return;
+//          }
 
           // Add a copy of this captured image to the list already captured.
           captured_images_.emplace_back(cv_bridge::toCvCopy(*last_image_msg_));
@@ -123,7 +127,10 @@ namespace charuco_ros2
           }
 
           // As an extra precaution, free the image so it can't be captured again.
-          last_image_msg_.release();
+          last_image_msg_.reset();
+
+          // return success
+          response->rc = response->OK;
 
           RCLCPP_INFO(this->get_logger(), "Frame captured: %d", captured_images_.size());
         });
