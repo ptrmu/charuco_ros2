@@ -20,7 +20,7 @@ namespace charuco_ros2
     rclcpp::Logger ros_logger_inst;
     rclcpp::Logger &ros_logger;
 
-    CharucoRos2Context cxt_{};
+    CharucoRos2Context cxt_;
     CharucoMath cm_;
 
     sensor_msgs::msg::Image::UniquePtr last_image_msg_{};
@@ -41,11 +41,8 @@ namespace charuco_ros2
     CharucoRos2Node()
       : Node("charuco_ros2_node"),
         ros_logger_inst{get_logger()}, ros_logger{ros_logger_inst},
-        cm_{ros_logger, cxt_}
+        cxt_{*this}, cm_{ros_logger, cxt_}
     {
-      // Get parameters from the command line
-      cxt_.load_parameters(*this);
-
       // ROS publishers. Initialize after parameters have been loaded.
       if (cxt_.publish_image_marked_) {
         image_marked_pub_ = create_publisher<sensor_msgs::msg::Image>(
@@ -61,6 +58,7 @@ namespace charuco_ros2
       // ROS subscriptions
       image_raw_sub_ = create_subscription<sensor_msgs::msg::Image>(
         cxt_.image_raw_sub_topic_,
+        16,
         [this](sensor_msgs::msg::Image::UniquePtr msg) -> void
         {
           // Make a copy of this image, annotate it, and publish it.
@@ -71,7 +69,7 @@ namespace charuco_ros2
 
             auto marked_image_msg{color->toImageMsg()};
             marked_image_msg->header = msg->header;
-            image_marked_pub_->publish(marked_image_msg);
+            image_marked_pub_->publish(*marked_image_msg);
           }
 
           // Save the last image. Take ownership of the image message. ROS has
@@ -80,15 +78,15 @@ namespace charuco_ros2
           // but instead we swap it with nullptr or the last message so it will
           // get destructed later.
           this->last_image_msg_.swap(msg);
-        },
-        16);
+        });
 
       image_captured_sub_ = create_subscription<sensor_msgs::msg::Image>(
         cxt_.image_captured_sub_topic_,
+        16,
         [this](const sensor_msgs::msg::Image::UniquePtr msg) -> void
         {
-        },
-        16);
+        }
+      );
 
 
       // ROS services
@@ -123,7 +121,7 @@ namespace charuco_ros2
 
           // Publish this captured image if requested
           if (cxt_.enable_image_captured_ && cxt_.pub_not_sub_image_captured_) {
-            image_captured_pub_->publish(last_image_msg_);
+            image_captured_pub_->publish(*last_image_msg_);
           }
 
           // As an extra precaution, free the image so it can't be captured again.

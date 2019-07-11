@@ -6,21 +6,21 @@ project(charuco_ros2)
 #=============
 
 # Default to C99
-if(NOT CMAKE_C_STANDARD)
+if (NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
-endif()
+endif ()
 
 # Default to C++14
-if(NOT CMAKE_CXX_STANDARD)
+if (NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 14)
-endif()
+endif ()
 
 # Emulate colcon
-if($ENV{CLION_IDE})
+if ($ENV{CLION_IDE})
   message("Running inside CLion")
   set(charuco_ros2_msgs_DIR "${PROJECT_SOURCE_DIR}/../../../install/charuco_ros2_msgs/share/charuco_ros2_msgs/cmake")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DRUN_INSIDE_CLION")
-endif()
+endif ()
 
 # Find packages
 find_package(ament_cmake REQUIRED)
@@ -29,6 +29,7 @@ find_package(cv_bridge REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(ros2_shared REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -42,6 +43,7 @@ include_directories(
   ${charuco_ros2_msgs_INCLUDE_DIRS}
   ${geometry_msgs_INCLUDE_DIRS}
   ${nav_msgs_INCLUDE_DIRS}
+  ${ros2_shared_INCLUDE_DIRS}
   ${sensor_msgs_INCLUDE_DIRS}
   ${std_msgs_INCLUDE_DIRS}
   ${tf2_msgs_INCLUDE_DIRS}
@@ -51,13 +53,13 @@ include_directories(
 
 # Debugging: set _dump_all_variables to true
 set(_dump_all_variables false)
-if(_dump_all_variables)
+if (_dump_all_variables)
   get_cmake_property(_variable_names VARIABLES)
   list(SORT _variable_names)
-  foreach(_variable_name ${_variable_names})
+  foreach (_variable_name ${_variable_names})
     message(STATUS "${_variable_name}=${${_variable_name}}")
-  endforeach()
-endif()
+  endforeach ()
+endif ()
 
 #=============
 # charuco_ros2 node
@@ -66,7 +68,8 @@ endif()
 add_executable(${PROJECT_NAME}
   src/charuco_ros2_node.cpp
   src/charuco_ros2_context.cpp
-  src/charuco_math.cpp)
+  src/charuco_math.cpp
+  )
 
 ament_target_dependencies(${PROJECT_NAME}
   cv_bridge
@@ -84,18 +87,16 @@ ament_target_dependencies(${PROJECT_NAME}
 #=============
 
 # Install targets
-install(
-  TARGETS
+install(TARGETS
   ${PROJECT_NAME}
-  DESTINATION lib/charuco_ros2
-)
+  DESTINATION lib/${PROJECT_NAME}
+  )
 
 # Install various directories
-install(
-  DIRECTORY
+install(DIRECTORY
   launch
-  DESTINATION share/charuco_ros2
-)
+  DESTINATION share/${PROJECT_NAME}
+  )
 
 #=============
 # Run ament macros

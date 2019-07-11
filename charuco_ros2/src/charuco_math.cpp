@@ -159,7 +159,7 @@ namespace charuco_ros2
         filteredImages.push_back(afd.allImgs_[i]);
       }
 
-      if (allCharucoCorners.size() < 4) {
+      if (allCharucoCorners.size() < 2) {
         RCLCPP_INFO(logger_, "Not enough corners for calibration");
         return charuco_ros2_msgs::srv::Calibrate_Response::NOT_ENOUGH_CORNERS;
       }
