@@ -65,7 +65,7 @@ namespace charuco_ros2
           if (cxt_.publish_image_marked_) {
             auto color{cv_bridge::toCvCopy(*msg)};
 
-            cm_.annotate_image(color);
+            cm_.annotate_image_debug(color);
 
             auto marked_image_msg{color->toImageMsg()};
             marked_image_msg->header = msg->header;

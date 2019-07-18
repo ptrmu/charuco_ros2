@@ -28,9 +28,9 @@ namespace charuco_ros2
                           /* charuco parameters */ \
   CXT_MACRO_MEMBER(aruco_dictionary_id, int, 5)           /* dictionary id  */ \
   CXT_MACRO_MEMBER(refind_strategy, int, 1)               /* non-zero => refine the detected markers  */ \
-  CXT_MACRO_MEMBER( squares_x, int, 12)                   /* number of squares in the x direction on the charuco board  */ \
+  CXT_MACRO_MEMBER(squares_x, int, 12)                    /* number of squares in the x direction on the charuco board  */ \
   CXT_MACRO_MEMBER(squares_y, int, 9)                     /* number of squares in the y direction on the charuco board  */ \
-  CXT_MACRO_MEMBER( square_length, float, 0.030)          /* length of a square on the charuco board  */ \
+  CXT_MACRO_MEMBER(square_length, float, 0.030)           /* length of a square on the charuco board  */ \
   CXT_MACRO_MEMBER(marker_length, float, 0.0225)          /* length of a marker on the charuco board  */ \
   \
   CXT_MACRO_MEMBER(publish_tfs, int, 1)                   /* non-zero => publish the tf of the camera at every frame  */ \

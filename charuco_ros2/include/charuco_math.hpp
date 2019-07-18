@@ -35,6 +35,8 @@ namespace charuco_ros2
 
     void annotate_image(std::shared_ptr<cv_bridge::CvImage> &color);
 
+    void annotate_image_debug(std::shared_ptr<cv_bridge::CvImage> &color);
+
     charuco_ros2_msgs::srv::Calibrate::Response::_rc_type calculate_calibration(
       const std::vector<std::shared_ptr<cv_bridge::CvImage>> &captured_images);
   };
