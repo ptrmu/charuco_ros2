@@ -108,6 +108,10 @@ namespace charuco_ros2
     }
   };
 
+// ==============================================================================
+// Drawing functions copied from opencv
+// ==============================================================================
+
   static void drawDetectedMarkers(cv::InputOutputArray _image, cv::InputArrayOfArrays _corners,
                                   cv::InputArray _ids = cv::noArray(),
                                   cv::Scalar borderColor = cv::Scalar(0, 255, 0))
@@ -188,6 +192,125 @@ namespace charuco_ros2
       line(image, p0, p1, borderColor, 1);
     }
   }
+
+  static void drawPolygonAtCenter(std::shared_ptr<cv_bridge::CvImage> &color, std::vector<cv::Point2f> &board_corners,
+                                  cv::Scalar borderColor = cv::Scalar(0, 0, 255))
+  {
+    cv::Point2f avg;
+    for (int i = 0; i < board_corners.size(); i += 1){
+      avg = avg + board_corners[i];
+    }
+    avg = avg / double(board_corners.size());
+    avg.x -= color->image.cols / 2;
+    avg.y -= color->image.rows / 2;
+    std::vector<cv::Point> bc = {
+      cv::Point{int(round(board_corners[0].x - avg.x)), int(round(board_corners[0].y - avg.y))},
+      cv::Point{int(round(board_corners[1].x - avg.x)), int(round(board_corners[1].y - avg.y))},
+      cv::Point{int(round(board_corners[2].x - avg.x)), int(round(board_corners[2].y - avg.y))},
+      cv::Point{int(round(board_corners[3].x - avg.x)), int(round(board_corners[3].y - avg.y))},
+    };
+    cv::fillConvexPoly(color->image, bc, borderColor);
+//    for (int j = 0; j < 4; j++) {
+//      cv::Point2f p0, p1;
+//      p0 = board_corners[j];
+//      p1 = board_corners[(j + 1) % 4];
+//      line(image, p0, p1, borderColor, 1);
+//    }
+  }
+
+  /*int main()
+{
+    // Read image
+    Mat3b img = imread("path_to_image");
+
+    // Convert to hsv
+    Mat3b hsv;
+    cvtColor(img, hsv, COLOR_BGR2HSV);
+
+    // Threshold on yellow color (in hsv space)
+    Mat1b maskOnYellow;
+    inRange(hsv, Scalar(20, 100, 100), Scalar(40, 255, 255), maskOnYellow);
+
+    // Find contours of yellow item
+    vector<vector<Point>> contours;
+    findContours(maskOnYellow.clone(), contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    // Create a mask as a filled contour
+    Mat1b mask(img.rows, img.cols, uchar(0));
+    drawContours(mask, contours, 0, Scalar(255), CV_FILLED);
+
+    // Get the bounding box of the item
+    Rect box = boundingRect(contours[0]);
+
+    // Get the roi in the input image according to the mask
+    Mat3b item(img(box));
+
+    // Create a black image (same size as the yellow item and same background bolor as result image)
+    // to copy the result of the segmentation
+    Vec3b backgroundColor(0,0,0); // black
+    Mat3b segmentedItem(item.rows, item.cols, backgroundColor);
+
+    // Copy only the masked part
+    item.copyTo(segmentedItem, mask(box));
+
+    // Compute the center of the image
+    Point center(img.cols / 2, img.rows / 2);
+
+    // Create a result image
+    Mat3b res(img.rows, img.cols, backgroundColor);
+
+    // Compute the rectangle centered in the image, same size as box
+    Rect centerBox(center.x - box.width/2, center.y - box.height/2, box.width, box.height);
+
+    // Put the segmented item in the center of the result image
+    segmentedItem.copyTo(res(centerBox));
+
+    imshow("Result", res);
+    waitKey();
+
+    return 0;
+}
+
+   #include opencv2/opencv.hpp
+
+using namespace cv;
+using namespace std;
+
+int main(int argc, char** argv)
+{
+
+    // Read the images
+    Mat foreground = imread("puppets.png");
+    Mat background = imread("ocean.png");
+    Mat alpha = imread("puppets_alpha.png");
+
+    // Convert Mat to float data type
+    foreground.convertTo(foreground, CV_32FC3);
+    background.convertTo(background, CV_32FC3);
+
+    // Normalize the alpha mask to keep intensity between 0 and 1
+    alpha.convertTo(alpha, CV_32FC3, 1.0/255); //
+
+    // Storage for output image
+    Mat ouImage = Mat::zeros(foreground.size(), foreground.type());
+
+    // Multiply the foreground with the alpha matte
+    multiply(alpha, foreground, foreground);
+
+    // Multiply the background with ( 1 - alpha )
+    multiply(Scalar::all(1.0)-alpha, background, background);
+
+    // Add the masked foreground and background.
+    add(foreground, background, ouImage);
+
+    // Display image
+    imshow("alpha blended image", ouImage/255);
+    waitKey(0);
+
+    return 0;
+}
+   */
+
 
 // ==============================================================================
 // CvCharucoMath class
@@ -367,6 +490,8 @@ namespace charuco_ros2
         cv::perspectiveTransform(board_corners_f_board, board_corners2D_f_image, homo);
 
         drawBoardCorners(color->image, board_corners2D_f_image);
+
+        drawPolygonAtCenter(color, board_corners2D_f_image);
       }
 
       // draw results

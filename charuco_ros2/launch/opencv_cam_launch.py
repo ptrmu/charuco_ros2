@@ -13,10 +13,13 @@ def generate_launch_description():
     return LaunchDescription([
         # ExecuteProcess(cmd=['rviz2', '-d', 'src/fiducial_vlam/fiducial_vlam/cfg/default.rviz'], output='screen'),
         ExecuteProcess(cmd=['rviz2'], output='screen'),
-        Node(package='opencv_cam', node_executable='opencv_cam_node', output='screen',
+        Node(package='opencv_cam', node_executable='opencv_cam_main', output='screen',
              node_name='opencv_cam', parameters=[{
                 'file': True,
-                'filename': '/home/peter/my_video-1.mkv'
+                'filename': '/home/peter/Videos/my_video-1.mkv',
+                'fps': 10,
             }]),
         Node(package='charuco_ros2', node_executable='charuco_ros2', output='screen'),
     ])
+
+# 'filename': '/home/peter/Videos/VID_20190717_164536.mp4',
