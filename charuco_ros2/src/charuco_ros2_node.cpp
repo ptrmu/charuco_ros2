@@ -63,11 +63,13 @@ namespace charuco_ros2
         {
           // Make a copy of this image, annotate it, and publish it.
           if (cxt_.publish_image_marked_) {
-            auto color{cv_bridge::toCvCopy(*msg)};
+            auto marked{cv_bridge::toCvCopy(*msg)};
+            auto gray{cv_bridge::toCvCopy(*msg, "mono8")};
 
-            cm_.annotate_image_debug(color);
+//            cm_.annotate_image_debug(marked);
+            cm_.evaluate_image(marked, gray);
 
-            auto marked_image_msg{color->toImageMsg()};
+            auto marked_image_msg{marked->toImageMsg()};
             marked_image_msg->header = msg->header;
             image_marked_pub_->publish(*marked_image_msg);
           }

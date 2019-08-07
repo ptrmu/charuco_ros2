@@ -106,7 +106,155 @@ namespace charuco_ros2
         cv::Point2f{0.0, squares_y_ * square_length_},
       };
     }
+
+    float width_per_height()
+    {
+      return static_cast<float>(squares_x_) / squares_y_;
+    }
   };
+
+// ==============================================================================
+// BoardProjection struct
+// ==============================================================================
+
+  struct BoardProjection
+  {
+    // Hold the image coordinates of the four corners of the board location.
+    std::vector<cv::Point2f> ordered_board_corners_;
+
+    BoardProjection(std::vector<cv::Point2f> &&ordered_board_corners) :
+      ordered_board_corners_{ordered_board_corners}
+    {}
+
+    float difference(BoardProjection &other)
+    {
+      auto diff = (
+                    cv::norm(ordered_board_corners_[0] - other.ordered_board_corners_[0]) +
+                    cv::norm(ordered_board_corners_[1] - other.ordered_board_corners_[1]) +
+                    cv::norm(ordered_board_corners_[2] - other.ordered_board_corners_[2]) +
+                    cv::norm(ordered_board_corners_[3] - other.ordered_board_corners_[3])
+                  ) / 4;
+      return diff;
+    }
+  };
+
+  struct ImageHolder
+  {
+    std::shared_ptr<cv_bridge::CvImage> gray_;
+
+    std::vector<int> aruco_ids_;
+    std::vector<std::vector<cv::Point2f> > aruco_corners_;
+
+    cv::Mat charuco_ids_;
+    cv::Mat charuco_corners_;
+
+    cv::Mat homo_;
+    BoardProjection board_projection_;
+
+    ImageHolder(std::shared_ptr<cv_bridge::CvImage> &gray,
+                std::vector<int> &&aruco_ids, std::vector<std::vector<cv::Point2f> > &&aruco_corners,
+                cv::Mat &&charuco_ids, cv::Mat &&charuco_corners,
+                cv::Mat &&homo, BoardProjection &&board_projection) :
+      gray_{gray},
+      aruco_ids_{aruco_ids}, aruco_corners_{aruco_corners},
+      charuco_ids_{charuco_ids}, charuco_corners_{charuco_corners},
+      homo_{homo}, board_projection_{board_projection}
+    {}
+  };
+
+  struct CalibrationImage
+  {
+    BoardProjection target_;
+    float difference_{};
+    std::shared_ptr<ImageHolder> image_{};
+
+    CalibrationImage(BoardProjection &&target) :
+      target_{target}
+    {}
+  };
+
+  class BoardTargets
+  {
+    rclcpp::Logger &logger_;
+    const cv::Size image_size;
+    std::vector<CalibrationImage> best_images_;
+
+    static BoardProjection new_target(float width_per_height, cv::Size &image_size,
+                                      int x_alignment, float x_normalized, float width_normalized,
+                                      int y_alignment, float y_normalized)
+    {
+      float x_max = image_size.width - 1;
+      float y_max = image_size.height - 1;
+
+      float width = width_normalized * x_max;
+      float height = width / width_per_height;
+
+      float left = x_normalized * x_max;
+      switch (x_alignment) {
+        case 0:
+          left -= width / 2;
+          break;
+        case 1:
+          left -= width;
+          break;
+      }
+
+      float top = y_normalized * y_max;
+      switch (y_alignment) {
+        case 0:
+          top -= height / 2;
+          break;
+        case 1:
+          top -= height;
+          break;
+      }
+
+      return BoardProjection(std::vector<cv::Point2f>{
+        cv::Point2f{left, top},
+        cv::Point2f(left + width, top),
+        cv::Point2f(left + width, top + height),
+        cv::Point2f(left, top + height),
+      });
+    }
+
+    static std::vector<CalibrationImage> new_best_images(float width_per_height, cv::Size &image_size)
+    {
+      return std::vector<CalibrationImage>{
+        CalibrationImage(new_target(width_per_height, image_size, -1, 0., 0.25, -1, 0.)),
+        CalibrationImage(new_target(width_per_height, image_size, +0, .5, 0.25, -1, 0.)),
+        CalibrationImage(new_target(width_per_height, image_size, +1, 1., 0.25, -1, 0.)),
+        CalibrationImage(new_target(width_per_height, image_size, -1, 0., 0.25, +1, 1.)),
+        CalibrationImage(new_target(width_per_height, image_size, +0, .5, 0.25, +1, 1.)),
+        CalibrationImage(new_target(width_per_height, image_size, +1, 1., 0.25, +1, 1.)),
+      };
+    }
+
+  public:
+    explicit BoardTargets(rclcpp::Logger &logger, float width_per_height, cv::Size &image_size) :
+      logger_{logger}, image_size{image_size}, best_images_{new_best_images(width_per_height, image_size)}
+    {
+    }
+
+    std::vector<CalibrationImage> &get_best_images()
+    {
+      return best_images_;
+    }
+
+    void compare_to_targets(std::shared_ptr<ImageHolder> &image_holder)
+    {
+      for (auto &best_image : best_images_) {
+        auto difference = best_image.target_.difference(image_holder->board_projection_);
+        if (difference < 300.) {
+          if (!best_image.image_ ||
+              difference < best_image.difference_) {
+            best_image.image_ = image_holder;
+            best_image.difference_ = difference;
+          }
+        }
+      }
+    }
+  };
+
 
 // ==============================================================================
 // Drawing functions copied from opencv
@@ -197,7 +345,7 @@ namespace charuco_ros2
                                   cv::Scalar borderColor = cv::Scalar(0, 0, 255))
   {
     cv::Point2f avg;
-    for (int i = 0; i < board_corners.size(); i += 1){
+    for (int i = 0; i < board_corners.size(); i += 1) {
       avg = avg + board_corners[i];
     }
     avg = avg / double(board_corners.size());
@@ -334,6 +482,8 @@ int main(int argc, char** argv)
         dictionary_);
     cv::Ptr<cv::aruco::Board> board_ = charucoboard_.staticCast<cv::aruco::Board>();
 
+    cv::Size image_size_{};
+    std::unique_ptr<BoardTargets> board_targets_{};
 
     struct FrameData
     {
@@ -362,7 +512,6 @@ int main(int argc, char** argv)
       }
     };
 
-
     struct AllFramesData
     {
       // collect data from each frame
@@ -384,6 +533,62 @@ int main(int argc, char** argv)
       }
     };
 
+    std::shared_ptr<ImageHolder> new_image_holder(std::shared_ptr<cv_bridge::CvImage> &gray)
+    {
+      std::vector<std::vector<cv::Point2f> > rejected;
+
+      // detect markers
+      std::vector<int> aruco_ids;
+      std::vector<std::vector<cv::Point2f> > aruco_corners;
+      cv::aruco::detectMarkers(gray->image, dictionary_, aruco_corners, aruco_ids, detectorParams_, rejected);
+
+      // refind strategy to detect more markers
+      if (cxt_.refind_strategy_) {
+        cv::aruco::refineDetectedMarkers(gray->image, board_, aruco_corners, aruco_ids, rejected);
+      }
+
+      // interpolate charuco corners
+      cv::Mat charuco_ids;
+      cv::Mat charuco_corners;
+      if (!aruco_ids.empty()) {
+        cv::aruco::interpolateCornersCharuco(aruco_corners, aruco_ids,
+                                             gray->image, charucoboard_,
+                                             charuco_corners, charuco_ids);
+      }
+
+      // Calculate Homography
+      cv::Mat homo;
+      std::vector<cv::Point2f> board_corners;
+      if (!aruco_ids.empty()) {
+        CharucoBoardModel cbm{cxt_.squares_x_, cxt_.squares_y_,
+                              cxt_.square_length_, cxt_.marker_length_};
+
+        std::vector<cv::Vec2f> op{};
+        std::vector<cv::Vec2f> ip{};
+
+        for (int i = 0; i < aruco_ids.size(); i += 1) {
+          auto id = aruco_ids[i];
+          auto object_points = cbm.marker_corners2D_f_board(id);
+          auto image_points = aruco_corners[i];
+          for (int j = 0; j < 4; j += 1) {
+            op.emplace_back(cv::Vec2f{float(object_points[j].x), float(object_points[j].y)});
+            ip.emplace_back(cv::Vec2f{float(image_points[j].x), float(image_points[j].y)});
+          }
+        }
+
+        homo = cv::findHomography(op, ip);
+
+        // Figure out the projection of the board corners in the image
+        auto board_corners_f_board = cbm.board_corners2D_f_board();
+        cv::perspectiveTransform(board_corners_f_board, board_corners, homo);
+      }
+
+      return std::make_shared<ImageHolder>(
+        gray,
+        std::move(aruco_ids), std::move(aruco_corners),
+        std::move(charuco_ids), std::move(charuco_corners),
+        std::move(homo), BoardProjection{std::move(board_corners)});
+    }
 
   public:
     explicit CvCharucoMath(rclcpp::Logger &logger, const CharucoRos2Context &cxt)
@@ -415,6 +620,54 @@ int main(int argc, char** argv)
     void DumpVec3f(std::string s, cv::Vec3f v)
     {
       RCLCPP_INFO(logger_, "V3 %s - %9.4f, %9.4f, %9.4f", s.c_str(), v(0), v(1), v(2));
+    }
+
+    void evaluate_image(std::shared_ptr<cv_bridge::CvImage> &marked, std::shared_ptr<cv_bridge::CvImage> &gray)
+    {
+      // The first time this is called, we have to initialize the targets with the size
+      // of the image passed in.
+      if (board_targets_ == nullptr) {
+        image_size_ = cv::Size{gray->image.cols, gray->image.rows};
+
+        CharucoBoardModel cbm{cxt_.squares_x_, cxt_.squares_y_,
+                              cxt_.square_length_, cxt_.marker_length_};
+
+        board_targets_ = std::make_unique<BoardTargets>(logger_, cbm.width_per_height(), image_size_);
+      }
+
+      // Don't process images that happen to be a different size.
+      if (image_size_.width != gray->image.cols || image_size_.height != gray->image.rows) {
+        return;
+      }
+
+      auto image_holder = new_image_holder(gray);
+
+      if (!image_holder->aruco_ids_.empty()) {
+        board_targets_->compare_to_targets(image_holder);
+      }
+
+      // Annotate the image with info we have collected so far.
+      if (!image_holder->aruco_ids_.empty()) {
+        drawDetectedMarkers(marked->image, image_holder->aruco_corners_);
+      }
+
+      if (!image_holder->charuco_ids_.empty()) {
+        drawDetectedCornersCharuco(marked->image,
+                                   image_holder->charuco_corners_,
+                                   image_holder->charuco_ids_);
+      }
+
+      if (!image_holder->board_projection_.ordered_board_corners_.empty()) {
+        drawBoardCorners(marked->image, image_holder->board_projection_.ordered_board_corners_);
+      }
+
+      for (auto &best_image : board_targets_->get_best_images()) {
+        drawBoardCorners(marked->image, best_image.target_.ordered_board_corners_);
+        if (best_image.image_) {
+          drawBoardCorners(marked->image, best_image.image_->board_projection_.ordered_board_corners_,
+                           cv::Scalar(255, 0, 0));
+        }
+      }
     }
 
     void annotate_image_debug(std::shared_ptr<cv_bridge::CvImage> &color)
@@ -479,7 +732,7 @@ int main(int argc, char** argv)
 
         auto homo = cv::findHomography(op, ip);
 
-        std::vector<cv::Point2f> obj_p{cv::Point2f{0.00, 0.0}};
+        std::vector<cv::Point2f> obj_p{cv::Point2f{0.0, 0.0}};
         std::vector<cv::Point2f> img_p{};
         cv::perspectiveTransform(obj_p, img_p, homo);
 
@@ -598,6 +851,12 @@ int main(int argc, char** argv)
   void CharucoMath::annotate_image(std::shared_ptr<cv_bridge::CvImage> &color)
   {
     cv_->annotate_image(color);
+  }
+
+  void
+  CharucoMath::evaluate_image(std::shared_ptr<cv_bridge::CvImage> &marked, std::shared_ptr<cv_bridge::CvImage> &gray)
+  {
+    cv_->evaluate_image(marked, gray);
   }
 
   void CharucoMath::annotate_image_debug(std::shared_ptr<cv_bridge::CvImage> &color)
