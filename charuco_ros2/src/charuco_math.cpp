@@ -1,5 +1,6 @@
 
 #include <memory>
+#include <iomanip>
 
 #include "charuco_math.hpp"
 #include "charuco_ros2_context.hpp"
@@ -8,6 +9,7 @@
 #include "opencv2/aruco.hpp"
 #include "opencv2/aruco/charuco.hpp"
 #include "opencv2/calib3d.hpp"
+#include "opencv2/imgcodecs.hpp"
 #include "rclcpp/logging.hpp"
 
 namespace charuco_ros2
@@ -140,24 +142,19 @@ namespace charuco_ros2
 
   struct ImageHolder
   {
-    std::shared_ptr<cv_bridge::CvImage> gray_;
+    cv::Mat gray_;
 
     std::vector<int> aruco_ids_;
     std::vector<std::vector<cv::Point2f> > aruco_corners_;
 
-    cv::Mat charuco_ids_;
-    cv::Mat charuco_corners_;
-
     cv::Mat homo_;
     BoardProjection board_projection_;
 
-    ImageHolder(std::shared_ptr<cv_bridge::CvImage> &gray,
+    ImageHolder(cv::Mat &gray,
                 std::vector<int> &&aruco_ids, std::vector<std::vector<cv::Point2f> > &&aruco_corners,
-                cv::Mat &&charuco_ids, cv::Mat &&charuco_corners,
                 cv::Mat &&homo, BoardProjection &&board_projection) :
       gray_{gray},
       aruco_ids_{aruco_ids}, aruco_corners_{aruco_corners},
-      charuco_ids_{charuco_ids}, charuco_corners_{charuco_corners},
       homo_{homo}, board_projection_{board_projection}
     {}
   };
@@ -179,7 +176,7 @@ namespace charuco_ros2
     const cv::Size image_size;
     std::vector<CalibrationImage> best_images_;
 
-    static BoardProjection new_target(float width_per_height, cv::Size &image_size,
+    static BoardProjection new_target(float width_per_height, const cv::Size &image_size,
                                       int x_alignment, float x_normalized, float width_normalized,
                                       int y_alignment, float y_normalized)
     {
@@ -217,7 +214,7 @@ namespace charuco_ros2
       });
     }
 
-    static std::vector<CalibrationImage> new_best_images(float width_per_height, cv::Size &image_size)
+    static std::vector<CalibrationImage> new_best_images(float width_per_height, const cv::Size &image_size)
     {
       return std::vector<CalibrationImage>{
         CalibrationImage(new_target(width_per_height, image_size, -1, 0., 0.25, -1, 0.)),
@@ -230,7 +227,7 @@ namespace charuco_ros2
     }
 
   public:
-    explicit BoardTargets(rclcpp::Logger &logger, float width_per_height, cv::Size &image_size) :
+    explicit BoardTargets(rclcpp::Logger &logger, float width_per_height, const cv::Size &image_size) :
       logger_{logger}, image_size{image_size}, best_images_{new_best_images(width_per_height, image_size)}
     {
     }
@@ -238,6 +235,16 @@ namespace charuco_ros2
     std::vector<CalibrationImage> &get_best_images()
     {
       return best_images_;
+    }
+
+    int width()
+    {
+      return image_size.width;
+    }
+
+    int height()
+    {
+      return image_size.height;
     }
 
     void compare_to_targets(std::shared_ptr<ImageHolder> &image_holder)
@@ -482,7 +489,6 @@ int main(int argc, char** argv)
         dictionary_);
     cv::Ptr<cv::aruco::Board> board_ = charucoboard_.staticCast<cv::aruco::Board>();
 
-    cv::Size image_size_{};
     std::unique_ptr<BoardTargets> board_targets_{};
 
     struct FrameData
@@ -533,18 +539,18 @@ int main(int argc, char** argv)
       }
     };
 
-    std::shared_ptr<ImageHolder> new_image_holder(std::shared_ptr<cv_bridge::CvImage> &gray)
+    std::shared_ptr<ImageHolder> new_image_holder(cv::Mat &gray)
     {
       std::vector<std::vector<cv::Point2f> > rejected;
 
       // detect markers
       std::vector<int> aruco_ids;
       std::vector<std::vector<cv::Point2f> > aruco_corners;
-      cv::aruco::detectMarkers(gray->image, dictionary_, aruco_corners, aruco_ids, detectorParams_, rejected);
+      cv::aruco::detectMarkers(gray, dictionary_, aruco_corners, aruco_ids, detectorParams_, rejected);
 
       // refind strategy to detect more markers
       if (cxt_.refind_strategy_) {
-        cv::aruco::refineDetectedMarkers(gray->image, board_, aruco_corners, aruco_ids, rejected);
+        cv::aruco::refineDetectedMarkers(gray, board_, aruco_corners, aruco_ids, rejected);
       }
 
       // interpolate charuco corners
@@ -552,7 +558,7 @@ int main(int argc, char** argv)
       cv::Mat charuco_corners;
       if (!aruco_ids.empty()) {
         cv::aruco::interpolateCornersCharuco(aruco_corners, aruco_ids,
-                                             gray->image, charucoboard_,
+                                             gray, charucoboard_,
                                              charuco_corners, charuco_ids);
       }
 
@@ -586,8 +592,15 @@ int main(int argc, char** argv)
       return std::make_shared<ImageHolder>(
         gray,
         std::move(aruco_ids), std::move(aruco_corners),
-        std::move(charuco_ids), std::move(charuco_corners),
         std::move(homo), BoardProjection{std::move(board_corners)});
+    }
+
+    std::unique_ptr<BoardTargets> new_board_targets(const cv::Size &image_size)
+    {
+      CharucoBoardModel cbm{cxt_.squares_x_, cxt_.squares_y_,
+                            cxt_.square_length_, cxt_.marker_length_};
+
+      return std::make_unique<BoardTargets>(logger_, cbm.width_per_height(), image_size);
     }
 
   public:
@@ -622,21 +635,16 @@ int main(int argc, char** argv)
       RCLCPP_INFO(logger_, "V3 %s - %9.4f, %9.4f, %9.4f", s.c_str(), v(0), v(1), v(2));
     }
 
-    void evaluate_image(std::shared_ptr<cv_bridge::CvImage> &marked, std::shared_ptr<cv_bridge::CvImage> &gray)
+    void evaluate_image(cv::Mat &marked, cv::Mat &gray)
     {
       // The first time this is called, we have to initialize the targets with the size
       // of the image passed in.
       if (board_targets_ == nullptr) {
-        image_size_ = cv::Size{gray->image.cols, gray->image.rows};
-
-        CharucoBoardModel cbm{cxt_.squares_x_, cxt_.squares_y_,
-                              cxt_.square_length_, cxt_.marker_length_};
-
-        board_targets_ = std::make_unique<BoardTargets>(logger_, cbm.width_per_height(), image_size_);
+        board_targets_ = new_board_targets(cv::Size{gray.cols, gray.rows});
       }
 
       // Don't process images that happen to be a different size.
-      if (image_size_.width != gray->image.cols || image_size_.height != gray->image.rows) {
+      if (board_targets_->width() != gray.cols || board_targets_->height() != gray.rows) {
         return;
       }
 
@@ -648,23 +656,17 @@ int main(int argc, char** argv)
 
       // Annotate the image with info we have collected so far.
       if (!image_holder->aruco_ids_.empty()) {
-        drawDetectedMarkers(marked->image, image_holder->aruco_corners_);
-      }
-
-      if (!image_holder->charuco_ids_.empty()) {
-        drawDetectedCornersCharuco(marked->image,
-                                   image_holder->charuco_corners_,
-                                   image_holder->charuco_ids_);
+        drawDetectedMarkers(marked, image_holder->aruco_corners_);
       }
 
       if (!image_holder->board_projection_.ordered_board_corners_.empty()) {
-        drawBoardCorners(marked->image, image_holder->board_projection_.ordered_board_corners_);
+        drawBoardCorners(marked, image_holder->board_projection_.ordered_board_corners_);
       }
 
       for (auto &best_image : board_targets_->get_best_images()) {
-        drawBoardCorners(marked->image, best_image.target_.ordered_board_corners_);
+        drawBoardCorners(marked, best_image.target_.ordered_board_corners_);
         if (best_image.image_) {
-          drawBoardCorners(marked->image, best_image.image_->board_projection_.ordered_board_corners_,
+          drawBoardCorners(marked, best_image.image_->board_projection_.ordered_board_corners_,
                            cv::Scalar(255, 0, 0));
         }
       }
@@ -836,6 +838,61 @@ int main(int argc, char** argv)
 
       return charuco_ros2_msgs::srv::Calibrate_Response::OK;
     }
+
+    void save_images()
+    {
+      std::ostringstream file_name;
+      file_name << cxt_.images_file_name_ << ".yml";
+      cv::FileStorage fs_header(file_name.str(), cv::FileStorage::WRITE);
+
+      fs_header << "width" << board_targets_->width()
+                << "height" << board_targets_->height()
+                << "imageNames" << "[";
+
+      auto best_images = board_targets_->get_best_images();
+      for (int i = 0; i < best_images.size(); i += 1) {
+        if (best_images[i].image_) {
+
+          std::ostringstream image_name;
+          image_name << cxt_.images_file_name_ << "_"
+                     << std::setfill('0') << std::setw(3) << i
+                     << ".png";
+          auto res = cv::imwrite(image_name.str(), best_images[i].image_->gray_);
+
+          fs_header << "{:"
+                    << "name" << image_name.str()
+                    << "}";
+        }
+      }
+
+      fs_header << "]";
+      fs_header.release();
+    }
+
+    void load_images()
+    {
+      std::ostringstream file_name;
+      file_name << cxt_.images_file_name_ << ".yml";
+      cv::FileStorage fs_header(file_name.str(), cv::FileStorage::READ);
+
+      auto board_targets = new_board_targets(cv::Size{(int) fs_header["width"], (int) fs_header["height"]});
+
+      cv::FileNode file_names = fs_header["imageNames"];
+      for (auto it = file_names.begin(); it != file_names.end(); ++it) {
+        std::string image_name;
+        (*it)["name"] >> image_name;
+
+        cv::Mat gray{cv::imread(image_name, cv::IMREAD_ANYCOLOR)};
+
+        auto image_holder = new_image_holder(gray);
+
+        if (!image_holder->aruco_ids_.empty()) {
+          board_targets->compare_to_targets(image_holder);
+        }
+      }
+
+      board_targets_ = std::move(board_targets);
+    }
   };
 
 // ==============================================================================
@@ -856,7 +913,7 @@ int main(int argc, char** argv)
   void
   CharucoMath::evaluate_image(std::shared_ptr<cv_bridge::CvImage> &marked, std::shared_ptr<cv_bridge::CvImage> &gray)
   {
-    cv_->evaluate_image(marked, gray);
+    cv_->evaluate_image(marked->image, gray->image);
   }
 
   void CharucoMath::annotate_image_debug(std::shared_ptr<cv_bridge::CvImage> &color)
@@ -870,4 +927,13 @@ int main(int argc, char** argv)
     return cv_->calculate_calibration(captured_images);
   }
 
+  void CharucoMath::load_images()
+  {
+    cv_->load_images();
+  }
+
+  void CharucoMath::save_images()
+  {
+    cv_->save_images();
+  }
 }

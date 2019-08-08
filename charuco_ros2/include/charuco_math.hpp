@@ -41,6 +41,10 @@ namespace charuco_ros2
 
     charuco_ros2_msgs::srv::Calibrate::Response::_rc_type calculate_calibration(
       const std::vector<std::shared_ptr<cv_bridge::CvImage>> &captured_images);
+
+    void load_images();
+
+    void save_images();
   };
 }
 #endif //CHARUCO_ROS2_CHARUCO_MATH_HPP

@@ -16,10 +16,10 @@ namespace charuco_ros2
   CXT_MACRO_MEMBER(image_marked_pub_topic, std::string, "image_marked")         /* topic for republishing the image with axes added to fiducial markers  */\
   CXT_MACRO_MEMBER(image_captured_pub_topic, std::string, "image_captured")     /* topic for republishing a captured image  */ \
   \
-  CXT_MACRO_MEMBER( image_raw_sub_topic, std::string, "image_raw")              /* topic for subscription to sensor_msgs::msg::Image */ \
+  CXT_MACRO_MEMBER(image_raw_sub_topic, std::string, "image_raw")               /* topic for subscription to sensor_msgs::msg::Image */ \
   CXT_MACRO_MEMBER(image_captured_sub_topic, std::string, "image_captured")     /* topic for subscription to image_captured topic */ \
   \
-  CXT_MACRO_MEMBER( calibrate_srv_topic, std::string, "charuco_ros2_calibrate") /* topic for calibrate service */ \
+  CXT_MACRO_MEMBER(calibrate_srv_topic, std::string, "charuco_ros2_calibrate")  /* topic for calibrate service */ \
   CXT_MACRO_MEMBER(capture_srv_topic, std::string, "charuco_ros2_capture")      /* topic for capture service  */ \
   \
   CXT_MACRO_MEMBER(publish_image_marked, int, 1)          /* non-zero => publish the image_marked at every frame  */ \
@@ -36,6 +36,10 @@ namespace charuco_ros2
   CXT_MACRO_MEMBER(publish_tfs, int, 1)                   /* non-zero => publish the tf of the camera at every frame  */ \
   CXT_MACRO_MEMBER(publish_odom, int, 1)                  /* non-zero => publish the odometry of the camera at every frame  */ \
   CXT_MACRO_MEMBER(stamp_msgs_with_current_time, int,  1) /* non-zero => debug mode, helpful for dealing with rviz when playing bags.  */ \
+  \
+  CXT_MACRO_MEMBER(go_save_images, int, 0)                /* Set to non-zero to save images */ \
+  CXT_MACRO_MEMBER(go_load_images, int, 0)                /* Set to non-zero to load images */ \
+  CXT_MACRO_MEMBER(images_file_name, std::string, "calibration_images")       /* File name for images. */ \
   /* End of list */
 
   struct CharucoRos2Context

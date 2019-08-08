@@ -23,6 +23,9 @@ namespace charuco_ros2
     CharucoRos2Context cxt_;
     CharucoMath cm_;
 
+    const long timer_interval_ms = 200;
+    rclcpp::TimerBase::SharedPtr timer_{};
+
     sensor_msgs::msg::Image::UniquePtr last_image_msg_{};
     std::vector<cv_bridge::CvImagePtr> captured_images_{};
 
@@ -54,6 +57,21 @@ namespace charuco_ros2
           cxt_.image_captured_pub_topic_, 16);
       }
 
+      // A timer that fires commands when parameters change.
+      timer_ = create_wall_timer(
+        std::chrono::milliseconds{timer_interval_ms},
+        [this]() -> void
+        {
+          if (cxt_.go_load_images_) {
+            CXT_MACRO_SET_PARAMETER((*this), cxt_, go_load_images, 0);
+            cm_.load_images();
+          }
+
+          if (cxt_.go_save_images_) {
+            CXT_MACRO_SET_PARAMETER((*this), cxt_, go_save_images, 0);
+            cm_.save_images();
+          }
+        });
 
       // ROS subscriptions
       image_raw_sub_ = create_subscription<sensor_msgs::msg::Image>(
