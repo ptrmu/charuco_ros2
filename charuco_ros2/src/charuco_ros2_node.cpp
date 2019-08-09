@@ -23,8 +23,12 @@ namespace charuco_ros2
     CharucoRos2Context cxt_;
     CharucoMath cm_;
 
-    const long timer_interval_ms = 200;
+    const int timer_interval_ms = 200;
     rclcpp::TimerBase::SharedPtr timer_{};
+
+    const int publish_marked_interval_ms = 1000;
+    const int max_ignored_callbacks = publish_marked_interval_ms / timer_interval_ms;
+    int ignored_callbacks_ = 0;
 
     sensor_msgs::msg::Image::UniquePtr last_image_msg_{};
     std::vector<cv_bridge::CvImagePtr> captured_images_{};
@@ -71,6 +75,13 @@ namespace charuco_ros2
             CXT_MACRO_SET_PARAMETER((*this), cxt_, go_save_images, 0);
             cm_.save_images();
           }
+
+          ignored_callbacks_ += 1;
+          if (ignored_callbacks_ > max_ignored_callbacks) {
+            // Get a dummy marked image and publish it.
+
+            ignored_callbacks_ = 0;
+          }
         });
 
       // ROS subscriptions
@@ -79,6 +90,8 @@ namespace charuco_ros2
         16,
         [this](sensor_msgs::msg::Image::UniquePtr msg) -> void
         {
+          ignored_callbacks_ = 0;
+
           // Make a copy of this image, annotate it, and publish it.
           if (cxt_.publish_image_marked_) {
             auto marked{cv_bridge::toCvCopy(*msg)};
