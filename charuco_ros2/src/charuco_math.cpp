@@ -603,6 +603,17 @@ int main(int argc, char** argv)
       return std::make_unique<BoardTargets>(logger_, cbm.width_per_height(), image_size);
     }
 
+    void mark_best_images(cv::Mat &marked)
+    {
+      for (auto &best_image : board_targets_->get_best_images()) {
+        drawBoardCorners(marked, best_image.target_.ordered_board_corners_);
+        if (best_image.image_) {
+          drawBoardCorners(marked, best_image.image_->board_projection_.ordered_board_corners_,
+                           cv::Scalar(255, 0, 0));
+        }
+      }
+    }
+
   public:
     explicit CvCharucoMath(rclcpp::Logger &logger, const CharucoRos2Context &cxt)
       : logger_{logger}, cxt_(cxt)
@@ -663,13 +674,18 @@ int main(int argc, char** argv)
         drawBoardCorners(marked, image_holder->board_projection_.ordered_board_corners_);
       }
 
-      for (auto &best_image : board_targets_->get_best_images()) {
-        drawBoardCorners(marked, best_image.target_.ordered_board_corners_);
-        if (best_image.image_) {
-          drawBoardCorners(marked, best_image.image_->board_projection_.ordered_board_corners_,
-                           cv::Scalar(255, 0, 0));
-        }
+      mark_best_images(marked);
+    }
+
+    cv::Mat get_blank_marked()
+    {
+      cv::Mat marked;
+      if (board_targets_ != nullptr) {
+        marked.create(board_targets_->height(), board_targets_->width(), CV_8UC3);
+        marked.setTo(cv::Scalar{0, 0, 0});
+        mark_best_images(marked);
       }
+      return marked;
     }
 
     void annotate_image_debug(std::shared_ptr<cv_bridge::CvImage> &color)
@@ -910,10 +926,18 @@ int main(int argc, char** argv)
     cv_->annotate_image(color);
   }
 
-  void
-  CharucoMath::evaluate_image(std::shared_ptr<cv_bridge::CvImage> &marked, std::shared_ptr<cv_bridge::CvImage> &gray)
+  void CharucoMath::evaluate_image(std::shared_ptr<cv_bridge::CvImage> &marked,
+                                   std::shared_ptr<cv_bridge::CvImage> &gray)
   {
     cv_->evaluate_image(marked->image, gray->image);
+  }
+
+
+  std::shared_ptr<cv_bridge::CvImage> CharucoMath::get_blank_marked()
+  {
+    auto image = cv_->get_blank_marked();
+    return image.empty() ? std::shared_ptr<cv_bridge::CvImage>{} :
+           std::make_shared<cv_bridge::CvImage>(std_msgs::msg::Header{}, "bgr8", image);
   }
 
   void CharucoMath::annotate_image_debug(std::shared_ptr<cv_bridge::CvImage> &color)

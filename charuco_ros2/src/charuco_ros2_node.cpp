@@ -66,6 +66,8 @@ namespace charuco_ros2
         std::chrono::milliseconds{timer_interval_ms},
         [this]() -> void
         {
+          auto stamp = now();
+
           if (cxt_.go_load_images_) {
             CXT_MACRO_SET_PARAMETER((*this), cxt_, go_load_images, 0);
             cm_.load_images();
@@ -79,7 +81,15 @@ namespace charuco_ros2
           ignored_callbacks_ += 1;
           if (ignored_callbacks_ > max_ignored_callbacks) {
             // Get a dummy marked image and publish it.
-
+            auto blank_marked_image = cm_.get_blank_marked();
+            // Make sure an image was returned.
+            if (blank_marked_image != nullptr) {
+              auto blank_marked_image_msg{blank_marked_image->toImageMsg()};
+              blank_marked_image_msg->header.stamp = stamp;
+              // The header.frame_id field is left blank. If this is a problem,
+              // then save the id from the original image messages.
+              image_marked_pub_->publish(*blank_marked_image_msg);
+            }
             ignored_callbacks_ = 0;
           }
         });

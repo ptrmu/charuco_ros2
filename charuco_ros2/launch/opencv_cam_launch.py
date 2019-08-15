@@ -17,7 +17,7 @@ def generate_launch_description():
              node_name='opencv_cam', parameters=[{
                 'file': True,
                 'filename': '/home/peter/Videos/VID_20190717_164536.mp4',
-                'fps': 15,
+                'fps': 12,
             }]),
         # Node(package='charuco_ros2', node_executable='charuco_ros2', output='screen'),
     ])
