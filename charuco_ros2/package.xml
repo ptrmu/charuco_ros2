@@ -21,6 +21,7 @@
   <depend>cv_bridge</depend>
   <depend>OpenCV</depend>
   <depend>rclcpp</depend>
+  <depend>ros2_shared</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>tf2_msgs</depend>
